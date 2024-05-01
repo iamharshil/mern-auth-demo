@@ -11,12 +11,12 @@ import Database from "./utils/Database";
 dotenv.config();
 const PORT = process.env.PORT || 4000;
 const app = express();
-app.use(express.json());
+app.use(cors({ credentials: true, origin: process.env.BASE_URL }));
 app.use(cookieParser());
-app.use(express.urlencoded({ extended: true }));
-app.use(cors());
-app.use(morgan("dev"));
 app.use(helmet());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan("dev"));
 
 // routes
 app.get("/hello-world", (req, res) => {

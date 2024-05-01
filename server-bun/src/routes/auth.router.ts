@@ -1,6 +1,7 @@
 import { Router } from "express";
 import UserModel from "../models/User.model";
-import { registerValidation } from "../../helper/validation";
+import { loginValidation, registerValidation } from "../../helper/validation";
+import { decryptToken, generateToken } from "../../helper/auth";
 
 const authRouter = Router();
 
@@ -40,13 +41,59 @@ authRouter.post("/register", async (req, res) => {
 	}
 });
 
+authRouter.get("/verify", async (req, res) => {
+	try {
+		const cookie = req.cookies["access-token"];
+		if (!cookie) return res.status(401).json({ success: false });
+		const dec_token = await decryptToken(cookie);
+		if (!dec_token) return res.status(401).json({ success: false });
+		return res.status(200).json({ success: true });
+	} catch (error) {
+		console.log(
+			">>> ~ file: auth.router.ts:20 ~ authRouter.post ~ error:",
+			error,
+		);
+		return res
+			.status(500)
+			.json({ success: false, message: "Internal server error!" });
+	}
+});
 authRouter.post("/login", async (req, res) => {
 	try {
 		const body = req.body;
-		console.log(
-			">>> ~ file: auth.router.ts:21 ~ authRouter.post ~ body:",
-			body,
-		);
+
+		try {
+			await loginValidation.validate(body);
+		} catch (error: any) {
+			return res.status(400).json({ success: false, message: error?.message });
+		}
+		const user = await UserModel.findOne({ email: body.email });
+		if (!user?._id)
+			return res
+				.status(400)
+				.json({ success: false, message: "Please enter valid credentials!" });
+
+		// use comparePassword method from User model
+		if (!user.comparePassword(body.password))
+			return res
+				.status(400)
+				.json({ success: false, message: "Please enter valid credentials!" });
+
+		// gen token
+		const token = await generateToken(user._id);
+		if (!token)
+			return res
+				.status(500)
+				.json({ success: false, message: "Internal server error!" });
+
+		// set cookie
+		res.cookie("access-token", token, {
+			maxAge: 60 * 60 * 60 * 24 * 30,
+			httpOnly: true,
+			secure: true,
+			sameSite: "none",
+		});
+		return res.status(200).json({ success: true });
 	} catch (error) {
 		console.log(
 			">>> ~ file: auth.router.ts:20 ~ authRouter.post ~ error:",

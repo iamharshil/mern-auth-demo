@@ -10,3 +10,10 @@ export const registerValidation = Yup.object({
 		.oneOf([Yup.ref("password")], "Password not matched")
 		.required("Please enter confirm password"),
 });
+
+export const loginValidation = Yup.object({
+	email: Yup.string()
+		.email("Please enter valid email")
+		.required("Please enter email"),
+	password: Yup.string().min(8).required("Please enter password"),
+});
