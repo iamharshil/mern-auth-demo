@@ -81,13 +81,20 @@ authRouter.post("/login", async (req, res) => {
 
 		// gen token
 		const token = await generateToken(user._id);
-		if (!token)
+		const refreshToken = await generateToken(user._id, "30d");
+		if (!token || !refreshToken)
 			return res
 				.status(500)
 				.json({ success: false, message: "Internal server error!" });
 
 		// set cookie
 		res.cookie("access-token", token, {
+			maxAge: 60 * 60 * 60,
+			httpOnly: true,
+			secure: true,
+			sameSite: "none",
+		});
+		res.cookie("refresh-token", refreshToken, {
 			maxAge: 60 * 60 * 60 * 24 * 30,
 			httpOnly: true,
 			secure: true,
