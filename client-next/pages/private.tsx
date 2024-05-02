@@ -1,5 +1,6 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 export default function Private() {
 	const router = useRouter();
@@ -12,6 +13,7 @@ export default function Private() {
 			.then((row) => row.json())
 			.then((res) => {
 				if (!res.success) {
+					toast.error(res.message);
 					return router.push("/login");
 				}
 				setShowContent(true);

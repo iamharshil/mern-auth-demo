@@ -41,23 +41,6 @@ authRouter.post("/register", async (req, res) => {
 	}
 });
 
-authRouter.get("/verify", async (req, res) => {
-	try {
-		const cookie = req.cookies["access-token"];
-		if (!cookie) return res.status(401).json({ success: false });
-		const dec_token = await decryptToken(cookie);
-		if (!dec_token) return res.status(401).json({ success: false });
-		return res.status(200).json({ success: true });
-	} catch (error) {
-		console.log(
-			">>> ~ file: auth.router.ts:20 ~ authRouter.post ~ error:",
-			error,
-		);
-		return res
-			.status(500)
-			.json({ success: false, message: "Internal server error!" });
-	}
-});
 authRouter.post("/login", async (req, res) => {
 	try {
 		const body = req.body;
@@ -89,13 +72,92 @@ authRouter.post("/login", async (req, res) => {
 
 		// set cookie
 		res.cookie("access-token", token, {
-			maxAge: 60 * 60 * 60,
+			maxAge: 1000 * 60 * 30,
 			httpOnly: true,
 			secure: true,
 			sameSite: "none",
 		});
 		res.cookie("refresh-token", refreshToken, {
-			maxAge: 60 * 60 * 60 * 24 * 30,
+			maxAge: 1000 * 60 * 60 * 24 * 30,
+			httpOnly: true,
+			secure: true,
+			sameSite: "none",
+		});
+		await UserModel.findByIdAndUpdate(user._id, { token: refreshToken });
+		return res.status(200).json({ success: true });
+	} catch (error) {
+		console.log(
+			">>> ~ file: auth.router.ts:20 ~ authRouter.post ~ error:",
+			error,
+		);
+		return res
+			.status(500)
+			.json({ success: false, message: "Internal server error!" });
+	}
+});
+
+authRouter.get("/verify", async (req, res) => {
+	try {
+		// get access token and verify
+		const accessToken = req.cookies["access-token"];
+		if (accessToken) {
+			const dec_token = await decryptToken(accessToken);
+			if (dec_token) return res.status(200).json({ success: true });
+			res.clearCookie("access-token");
+			res.clearCookie("refresh-token");
+			return res.status(401).json({
+				success: false,
+				message: "Session expired, please login again!",
+			});
+		}
+		// if access token not found, check refresh token
+		const refreshToken = req.cookies["refresh-token"];
+		if (!refreshToken) {
+			res.clearCookie("access-token");
+			res.clearCookie("refresh-token");
+			return res.status(401).json({
+				success: false,
+				message: "Session expired, please login again!",
+			});
+		}
+		const dec_token = await decryptToken(refreshToken);
+		if (!dec_token) {
+			res.clearCookie("access-token");
+			res.clearCookie("refresh-token");
+			return res.status(401).json({
+				success: false,
+				message: "Session expired, please login again!",
+			});
+		}
+		const user = await UserModel.findById(dec_token);
+		if (!user?._id) {
+			res.clearCookie("access-token");
+			res.clearCookie("refresh-token");
+			return res.status(401).json({
+				success: false,
+				message: "Session expired, please login again!",
+			});
+		}
+		// verify refresh token with database token
+		if (!user.compareToken(refreshToken)) {
+			res.clearCookie("access-token");
+			res.clearCookie("refresh-token");
+			return res.status(401).json({
+				success: false,
+				message: "Session expired, please login again!",
+			});
+		}
+
+		// if everything is fine, generate new access token
+		const newAccessToken = await generateToken(user._id);
+		if (!newAccessToken) {
+			return res.status(500).json({
+				success: false,
+				message: "Something went wrong, please try again!",
+			});
+		}
+		res.cookie("access-token", newAccessToken, {
+			maxAge: 1000 * 60 * 30,
 			httpOnly: true,
 			secure: true,
 			sameSite: "none",
