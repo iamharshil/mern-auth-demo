@@ -139,7 +139,7 @@ authRouter.get("/verify", async (req, res) => {
 			});
 		}
 		// verify refresh token with database token
-		if (!user.compareToken(refreshToken)) {
+		if (user.token !== refreshToken.toString()) {
 			res.clearCookie("access-token");
 			res.clearCookie("refresh-token");
 			return res.status(401).json({
